@@ -1,4 +1,4 @@
-from machine import Pin, I2C
+from machine import Pin, I2C, PWM
 from mpu6050 import MPU6050
 from ssd1306 import SSD1306_I2C
 from time import sleep, ticks_ms
@@ -16,14 +16,12 @@ oled_width = 128
 oled_height = 64
 oled = SSD1306_I2C(oled_width, oled_height, i2c_oled)
 
-# 起動画面の表示
-oled.fill(0)
-oled.text("Car Camp Leveler", 0, 20)  # アプリ名
-oled.text("Loading...", 30, 40)       # ローディング表示
-oled.show()
+# ブザーの設定 (GPIO 5 に変更)
+buzzer = PWM(Pin(5))
+buzzer.deinit()  # 最初は音を鳴らさない
 
-# 起動画面を 2 秒間表示
-sleep(2)
+# スライドスイッチの設定 (Mute 切替, GPIO 28)
+mute_switch = Pin(28, Pin.IN, Pin.PULL_UP)
 
 # 角度の初期値
 angle_x = 0
@@ -32,6 +30,13 @@ last_time = ticks_ms()
 
 # コンプリメントフィルタの係数
 alpha = 0.95
+
+# 起動画面の表示
+oled.fill(0)
+oled.text("Car-Camp-Leveler", 0, 20)
+oled.text("Loading...", 30, 40)
+oled.show()
+sleep(2)
 
 print("Car-Camp-Leveler 起動中...")
 
@@ -84,24 +89,34 @@ while True:
 
     # OLED 表示クリア
     oled.fill(0)
-    
-    # アプリ名を表示
     oled.text("Car-Camp-Leveler", 0, 0)
-
-    # OLED にデータ表示 (整数にして deg を追加)
     oled.text("X-Angle:", 0, 20)
     oled.text(f"{display_x}deg", 80, 20)
-    
     oled.text("Y-Angle:", 0, 35)
     oled.text(f"{display_y}deg", 80, 35)
     
-    oled.text("Positon:", 0, 50)
-    
-    # ベッドの方向を表示
+    # Mute 状態の確認
+    is_mute = mute_switch.value()  # HIGH: Mute OFF, LOW: Mute ON
+
+    # Flat 状態の判定
     if display_x < 5 and display_y < 5:
-        oled.text("Flat", 80, 50)
+        oled.text("Flat (OK)", 80, 50)
+        if not is_mute:
+            # Flat の間は Beep 音を鳴らし続ける
+            buzzer.freq(5000)             # 周波数を 5000Hz に変更
+            buzzer.duty_u16(65535)        # 最大音量に設定
+        else:
+            # Mute ON の場合は音を止める
+            buzzer.duty_u16(0)
     else:
         oled.text("Tilted", 80, 50)
+        buzzer.duty_u16(0)  # Tilted 状態では音を止める
+
+    # Mute 状態の表示
+    if is_mute:
+        oled.text("Mute: ON", 0, 50)
+    else:
+        oled.text("Mute: OFF", 0, 50)
 
     oled.show()
 
