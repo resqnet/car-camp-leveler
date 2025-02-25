@@ -1,4 +1,4 @@
-from machine import Pin, I2C, PWM
+from machine import Pin, I2C, PWM, reset
 from mpu6050 import MPU6050
 from ssd1306 import SSD1306_I2C
 from time import sleep, ticks_ms
@@ -16,12 +16,16 @@ oled_width = 128
 oled_height = 64
 oled = SSD1306_I2C(oled_width, oled_height, i2c_oled)
 
-# ブザーの設定 (GPIO 5 に変更)
+# ブザーの設定 (GPIO 5)
 buzzer = PWM(Pin(5))
 buzzer.deinit()  # 最初は音を鳴らさない
 
 # スライドスイッチの設定 (Mute 切替, GPIO 28)
 mute_switch = Pin(28, Pin.IN, Pin.PULL_UP)
+
+# ボタンの設定 (GP27 と GP21)
+button1 = Pin(27, Pin.IN, Pin.PULL_UP)  # ボタン 1
+button2 = Pin(21, Pin.IN, Pin.PULL_UP)  # ボタン 2
 
 # 角度の初期値
 angle_x = 0
@@ -102,21 +106,27 @@ while True:
     if display_x < 5 and display_y < 5:
         oled.text("Flat (OK)", 80, 50)
         if not is_mute:
-            # Flat の間は Beep 音を鳴らし続ける
-            buzzer.freq(5000)             # 周波数を 5000Hz に変更
-            buzzer.duty_u16(65535)        # 最大音量に設定
+            buzzer.freq(5000)
+            buzzer.duty_u16(65535)
         else:
-            # Mute ON の場合は音を止める
             buzzer.duty_u16(0)
     else:
         oled.text("Tilted", 80, 50)
-        buzzer.duty_u16(0)  # Tilted 状態では音を止める
+        buzzer.duty_u16(0)
 
     # Mute 状態の表示
     if is_mute:
         oled.text("Mute: ON", 0, 50)
     else:
         oled.text("Mute: OFF", 0, 50)
+
+    # 同時押しで再起動 (Mute 状態のみ)
+    if is_mute and button1.value() == 0 and button2.value() == 0:
+        oled.fill(0)
+        oled.text("Restarting...", 20, 30)
+        oled.show()
+        sleep(1)
+        reset()  # 再起動
 
     oled.show()
 
